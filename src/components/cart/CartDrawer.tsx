@@ -12,29 +12,15 @@ import { toast } from '@/components/ui/Toast'
 const FREE_AT = 100
 
 export default function CartDrawer() {
-  const isOpen  = useCartStore((s) => s.isOpen)
-  const close   = useCartStore((s) => s.close)
-  const setCart = useCartStore((s) => s.setCart)
-
-  console.log('CartDrawer isOpen:', isOpen)
+  const isOpen   = useCartStore((s) => s.isOpen)
+  const close    = useCartStore((s) => s.close)
+  const cart     = useCartStore((s) => s.cart)
+  const setCart  = useCartStore((s) => s.setCart)
+  const updateQty = useCartStore((s) => s.updateQty)
+  const removeItem = useCartStore((s) => s.removeItem)
 
   const { isAuthenticated } = useAuthStore()
   const qc = useQueryClient()
-
-  const { data: cart, isLoading } = useQuery({
-    queryKey: ['cart'],
-    queryFn:  cartApi.get,
-    enabled:  isAuthenticated,
-  })
-
-  useEffect(() => {
-    if (cart) setCart(cart)
-  }, [cart, setCart])
-
-  useEffect(() => {
-    document.body.style.overflow = isOpen ? 'hidden' : ''
-    return () => { document.body.style.overflow = '' }
-  }, [isOpen])
 
   const updateM = useMutation({
     mutationFn: ({ sku, qty }: { sku: string; qty: number }) =>
@@ -50,6 +36,31 @@ export default function CartDrawer() {
       toast('Item removed', 'info')
     },
   })
+
+  const { data: serverCart, isLoading } = useQuery({
+    queryKey: ['cart'],
+    queryFn:  cartApi.get,
+    enabled:  isAuthenticated,
+  })
+
+  useEffect(() => {
+    if (serverCart && isAuthenticated) setCart(serverCart)
+  }, [serverCart, isAuthenticated, setCart])
+
+  useEffect(() => {
+    document.body.style.overflow = isOpen ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [isOpen])
+
+  const handleUpdate = (sku: string, qty: number) => {
+    if (isAuthenticated) updateM.mutate({ sku, qty })
+    else updateQty(sku, qty)
+  }
+
+  const handleRemove = (sku: string) => {
+    if (isAuthenticated) removeM.mutate(sku)
+    else removeItem(sku)
+  }
 
   const subtotal = cart?.items.reduce(
     (s, i) => s + i.product.price * i.quantity, 0
@@ -89,26 +100,7 @@ export default function CartDrawer() {
         </div>
 
         <div className="flex-1 overflow-y-auto">
-          {!isAuthenticated ? (
-            <div className="flex flex-col items-center justify-center h-full px-8 text-center">
-              <ShoppingBag size={44} className="text-stone-200 mb-5" strokeWidth={1} />
-              <h3
-                style={{ fontFamily: 'Cormorant Garamond, serif' }}
-                className="text-xl mb-2"
-              >
-                Sign in to view your bag
-              </h3>
-              <p className="text-sm text-stone-500 mb-6">
-                Your cart is saved to your account
-              </p>
-              <Link to="/login" onClick={close} className="btn btn-primary w-full">
-                Sign In
-              </Link>
-              <Link to="/register" onClick={close} className="btn btn-ghost btn-sm mt-2 w-full">
-                Create Account
-              </Link>
-            </div>
-          ) : isLoading ? (
+          {isLoading && isAuthenticated ? (
             <div className="flex justify-center py-16">
               <Spinner />
             </div>
@@ -196,8 +188,8 @@ export default function CartDrawer() {
                             <button
                               onClick={() =>
                                 item.quantity > 1
-                                  ? updateM.mutate({ sku: item.variantSku, qty: item.quantity - 1 })
-                                  : removeM.mutate(item.variantSku)
+                                  ? handleUpdate(item.variantSku, item.quantity - 1)
+                                  : handleRemove(item.variantSku)
                               }
                               disabled={updateM.isPending}
                               className="px-2.5 py-1.5 text-stone-500 hover:text-stone-900 disabled:opacity-40"
@@ -209,7 +201,7 @@ export default function CartDrawer() {
                             </span>
                             <button
                               onClick={() =>
-                                updateM.mutate({ sku: item.variantSku, qty: item.quantity + 1 })
+                                handleUpdate(item.variantSku, item.quantity + 1)
                               }
                               disabled={
                                 updateM.isPending ||
@@ -222,7 +214,7 @@ export default function CartDrawer() {
                           </div>
 
                           <button
-                            onClick={() => removeM.mutate(item.variantSku)}
+                            onClick={() => handleRemove(item.variantSku)}
                             className="p-1 text-stone-300 hover:text-red-500 transition-colors"
                           >
                             <Trash2 size={13} />
@@ -237,14 +229,14 @@ export default function CartDrawer() {
           )}
         </div>
 
-        {isAuthenticated && !!cart?.items.length && (
+        {!!cart?.items.length && (
           <div className="border-t border-stone-100 px-6 py-5 space-y-4">
             <div className="flex justify-between text-sm">
               <span className="text-stone-500">Subtotal</span>
               <span className="font-semibold">{fmt(subtotal)}</span>
             </div>
             <p className="text-xs text-stone-400">
-              Shipping and taxes at checkout
+              Free shipping on all orders
             </p>
             <div className="space-y-2">
               <Link

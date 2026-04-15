@@ -28,6 +28,7 @@ export default function ProductPage() {
   const openCart = useCartStore((s) => s.open)
   const { items: wishlist, toggle: toggleWish } = useWishlistStore()
   const qc = useQueryClient()
+  const addItem = useCartStore((s) => s.addItem)
 
   const { data: product, isLoading, error } = useQuery({
     queryKey: ['product', slug],
@@ -127,11 +128,8 @@ export default function ProductPage() {
 
   const inWish = wishlist.some((p) => p._id === product.id)
 
+
   const handleAdd = () => {
-    if (!isAuthenticated) {
-      toast('Please sign in to add to cart', 'info')
-      return
-    }
     const hasColors = colors.length > 0
     const hasSizes = sizes.length > 0
 
@@ -153,7 +151,14 @@ export default function ProductPage() {
         return
       }
     }
-    addM.mutate({ sku, qty })
+
+    if (isAuthenticated) {
+      addM.mutate({ sku, qty })
+    } else {
+      addItem(product, sku, qty)
+      toast('Added to bag 🛍️', 'success')
+      openCart()
+    }
   }
 
   const toggle = (k: string) =>

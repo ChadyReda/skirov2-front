@@ -14,9 +14,10 @@ import { errMsg } from '@/services/api'
 import { ShoppingBag } from 'lucide-react'
 
 const schema = z.object({
+  email:     z.string().email('Invalid email').optional(),
   firstName: z.string().min(1, 'Required'),
   lastName:  z.string().min(1, 'Required'),
-  phone:     z.string().optional(),
+  phone:     z.string().min(8, 'Required'),
   street:    z.string().min(1, 'Required'),
   apartment: z.string().optional(),
   city:      z.string().min(1, 'Required'),
@@ -32,15 +33,18 @@ const TAX_RATE      = 0
 
 export default function CheckoutPage() {
   const { isAuthenticated, user } = useAuthStore()
-  const setCart                   = useCartStore((s) => s.setCart)
+  const clearCart                 = useCartStore((s) => s.clearCart)
+  const localCart                 = useCartStore((s) => s.cart)
   const navigate                  = useNavigate()
   const [step, setStep]           = useState<'address' | 'confirm'>('address')
 
-  const { data: cart, isLoading } = useQuery({
+  const { data: serverCart, isLoading } = useQuery({
     queryKey: ['cart'],
     queryFn:  cartApi.get,
     enabled:  isAuthenticated,
   })
+
+  const cart = isAuthenticated ? serverCart : localCart
 
   const {
     register,
@@ -65,32 +69,16 @@ export default function CheckoutPage() {
           quantity:   i.quantity,
         })),
         shippingAddress: addr,
+        guestEmail: addr.email,
       }),
     onSuccess: () => {
-      setCart(null)
+      clearCart()
       navigate('/?orderSuccess=1')
     },
     onError: (e) => toast(errMsg(e), 'error'),
   })
 
-  if (!isAuthenticated) return (
-    <div className="page py-20 text-center">
-      <ShoppingBag size={40} className="text-stone-200 mx-auto mb-4" strokeWidth={1} />
-      <h2
-        style={{ fontFamily: 'Cormorant Garamond, serif' }}
-        className="text-2xl mb-3"
-      >
-        Sign in to checkout
-      </h2>
-      <Link
-        to="/login"
-        state={{ from: { pathname: '/checkout' } }}
-        className="btn btn-primary"
-      >
-        Sign In
-      </Link>
-    </div>
-  )
+  // Remove the redirect
 
   if (isLoading) return <Spinner full />
 
@@ -182,6 +170,19 @@ export default function CheckoutPage() {
               <h2 className="font-medium text-stone-900 mb-4">
                 Delivery Address
               </h2>
+
+              {!isAuthenticated && (
+                <div>
+                  <label className="label">Email Address *</label>
+                  <input
+                    {...register('email', { required: !isAuthenticated ? 'Email is required' : false })}
+                    type="email"
+                    placeholder="For order confirmation"
+                    className={`input ${errors.email ? 'input-err' : ''}`}
+                  />
+                  {errors.email && <p className="ferror">{errors.email.message}</p>}
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -322,6 +323,11 @@ export default function CheckoutPage() {
                 <p className="text-sm font-medium text-stone-900">
                   {getValues('firstName')} {getValues('lastName')}
                 </p>
+                {getValues('email') && (
+                  <p className="text-sm text-stone-500">
+                    {getValues('email')}
+                  </p>
+                )}
                 {getValues('phone') && (
                   <p className="text-sm text-stone-500">
                     {getValues('phone')}
@@ -406,8 +412,6 @@ export default function CheckoutPage() {
             <div className="space-y-2 text-sm border-t border-stone-100 pt-4">
               {[
                 ['Subtotal',  fmt(subtotal)],
-                ['Shipping',  shipping === 0 ? 'Free' : fmt(shipping)],
-                ['Tax (0%)',  fmt(tax)],
               ].map(([l, v]) => (
                 <div key={l} className="flex justify-between">
                   <span className="text-stone-500">{l}</span>
