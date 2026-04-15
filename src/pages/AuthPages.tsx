@@ -104,9 +104,9 @@ export function LoginPage() {
 
             {m.isError && (
               <div className="p-3 mb-4 text-sm text-red-600 bg-red-50 border border-red-100">
-                {m.error.message === 'Invalid login credentials'
-                  ? 'Invalid login credentials.'
-                  : 'Login failed. Please try again.'}
+                {(m.error as any)?.response?.status === 401
+                  ? 'Invalid email or password. Please try again.'
+                  : errMsg(m.error)}
               </div>
             )}
             <button
@@ -246,6 +246,13 @@ export function RegisterPage() {
                 <p className="ferror">{errors.password.message}</p>
               )}
             </div>
+
+            {m.isError && (
+              <div className="p-3 mb-4 text-sm text-red-600 bg-red-50 border border-red-100">
+                {errMsg(m.error)}
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={m.isPending}
